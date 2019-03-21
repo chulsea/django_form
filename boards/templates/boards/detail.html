@@ -1,0 +1,9 @@
+{% extends 'boards/base.html' %}
+{% block title %}{{ board.title }}{% endblock %}
+{% block body %}
+<h1>{{ board.id }}번 게시글</h1>
+<h2>{{ board.title }}</h2>
+<hr>
+<p>{{ board.content }}</p>
+<a href="{% url 'boards:index' %}">BACK</a>
+{% endblock %}
