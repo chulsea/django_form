@@ -1,4 +1,5 @@
 {% extends 'boards/base.html' %}
+{% load crispy_forms_tags %}
 {% block title %}NEW{% endblock %}
 {% block body %}
 <!-- request 객체의 resolver_match는 해당 요청 정보를 가지고 있다.-->
@@ -9,9 +10,52 @@
 {% endif %}
 <form method="POST">
     {% csrf_token %}    
-    {{ form.as_p }} <!-- as_p, as_table, as_ul이 존재 -->
+    <!-- as_p, as_table, as_ul이 존재 -->
+    {{ form|crispy }}
     <input type="submit" value="생성">
 </form>
+
+<!-- form 데이터를 column별로 분기하는 법-->
+<form method="POST">
+    {% csrf_token %}    
+    {{ form.title }} 
+    <!-- form에서 title column 만-->
+    {{ form.content }} 
+    <!-- form에서 content column 만-->
+    <!-- 단, label은 없다. -->
+    <input type="submit" value="생성">
+</form>
+
+<!-- form의 field를 for문으로 출력하는 방법 -->
+<form method="POST">
+    {% csrf_token %}
+    {% for field in form %}
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+    {% endfor %}
+    <input type="submit" value="생성">
+</form>
+
+<!-- 기본적으로 각각 분기 -->
+{{ form.non_field_errors }}
+<form method="POST">
+    {% csrf_token %}
+    <div>
+        {{ form.title.errors }}
+        {{ form.title.label_tag }}
+        {{ form.title }}
+    </div>
+    <div>
+        {{ form.content.errors }}
+        {{ form.content.label_tag }}
+        {{ form.content }}
+    </div>
+    <input type="submit" value="생성">
+</form>
+
+{% crispy form %}
+
+
 {% if request.resolver_match.url_name == 'create' %}
     <a href="{% url 'boards:index' %}">BACK</a>
 {% else %}

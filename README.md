@@ -218,7 +218,215 @@ class BoardForm(forms.ModelForm):
     
     - required로 값이 없는 경우의 에러메세지를 전달할 수 있다.
     
-위 `ModelForm`으로 
+위 `ModelForm`을 사용하면 `Form`과 다음과 같은 차이점이 있다.
+
+```python
+def create(request):
+    # 기존의 Django Form을 사용했을 때 create
+    if request.method == 'POST':
+        form = BoardForm(request.POST)
+        if form.is_valid():
+            title = form.cleaned_data.get('title')
+            content = form.cleaned_data.get('content')
+            board = Board.objects.create(title=title, content=content)
+            return redirect('boards:index')
+    else:
+        form = BoardForm()
+    ctx = {
+        'form': form
+    }
+    return render(request, 'boards/create.html', ctx)
+    
+def create(request):
+    # ModelForm을 사용했을때의 create
+    if request.method == 'POST':
+        form = BoardForm(request.POST)
+        # 이미 ModelForm에서 입력값 검증을 처리하므로 form의 cleaned_data를 받을 필요가 없다.
+        if form.is_valid():
+            board = form.save() # form에는 검증된 데이터만 존재하므로 save()로 모델 객체를 받을 수 있다.
+            return redirect('boards:detail', board.pk)
+    else:
+        form = BoardForm()
+    ctx = {
+        'form': form,
+    }
+    return render(request, 'boards/form.html', ctx)
+```
+
+`ModelForm`에서는 `cleaned_data`를 사용하지 않는다. 이미 요청이 들어왔을때 검증을 처리해주기 때문이다.
+그리고 `ModelForm`의 객체에 `save()` 메서드가 존재한다. 이는 `Model` 객체의 `save()`와는 다르다.
+`ModelForm`의 객체에 `save()`는 검증된 데이터를 가지고 해당 model 객체를 가져올 수 있다.
+
+```python
+def update(request, board_pk):
+    board = get_object_or_404(Board, pk=board_pk)
+    if request.method == 'POST':
+        form = BoardForm(request.POST)
+        if form.is_valid():
+            board.title = form.cleaned_data.get('title')
+            board.content = form.cleaned_data.get('content')
+            board.save()
+            return redirect('boards:detail', board.id)
+    else:
+        form = BoardForm(initial=board.__dict__)
+        """
+        board가 가지고 있는 값을 dictionary로 가져온다
+        원래는 initial에 dictionary로 주기 때문에 __dict__로 준다.
+        만약 위와같이 하지 않는다면
+        form = BoardForm(initial={'title': board.title, 'content': board.content})
+        이와 같이 사용해야한다.
+        """
+    ctx = {
+        'form': form
+    }
+  return render(request, 'boards/create.html', ctx)
+        
+def update(request, board_pk):
+    board = get_object_or_404(Board, pk=board_pk)
+    if request.method == 'POST':
+        form = BoardForm(request.POST, instance=board) # 1
+        # instance를 전달하여 form에서 전달된 데이터를 해당 model로 받을 수 있다.
+        if form.is_valid():
+            board = board.save() # 2
+            return redirect('boards:detail', board.id)
+    else:
+        form = BoardForm(instance=board) # 3
+        # ModelForm에서는 initial이 아닌 instance로 객체를 전달해야한다.
+    ctx = {
+        'form': form,
+        'board': board,
+    }
+    return render(request, 'boards/form.html', ctx)
+```
+
+`update`는 create와는 달리 클라이언트에게 이미 저장된 값을 보여주는게 UX 디자인 상 좋으므로 수정할 model의 값을 전달하는 것이 좋다.
+이를 위해서는 `ModelForm`의 `instance` 인자를 이용한다.
+
+> `Form`에서는 initial을 이용했다.
+
+```python
+form = BoardForm(request.POST, instance=board)
+```
+위와 같이 요청받은 입력값과 함께 데이터를 바꿀 모델을 instance 인자에 전달하여 수정된 model 객체를 얻을 수 있다.
+
+```python
+form = BoardForm(instance=board)
+```
+`request.POST` 없이 instance 인자에 수정할 model 객체를 전달하면 `ModelForm`에 등록한 `Meta` 정보를 이용하여 값을 바인딩해준다.
+
+## - request.resolver_match
+
+django template language에서 요청정보를 받을때 사용한다.
+
+```
+{% if request.resolver_match.url_name == 'create' %}
+    <h1>NEW board</h1>
+{% else %}
+    <h1>EDIT board</h1>
+{% endif %}
+```
+
+위와 같이 django url에서 url이름이 create인 경우는 `NEW board`를 아닌 경우는 `EDIT board`를 뷰에 렌더한다.
 
 ## - django-crispy-forms
 
+`settings.py`에 app등록을 해주어야한다.
+
+> 'crispy_forms'
+
+그리고 `settings.py`에 아래와 같이 설정한다.
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
+
+> 위 경우는 bootstrap을 사용하는 경우
+
+`settings.py`에 `crispy`를 등록하면 이제 django template language에서 `crispy`를 사용할 수 있다.
+
+사용하기 위해서는 `{% load crispy_forms_tags %}`로 crispy filter를 가져와야한다.
+
+그리고 form 객체에 crispy 필터를 사용하여 CRISPY_TEMPLATE_PACK으로 등록한 스타일을 입힐 수 있다.
+
+`{{ form|crispy }}`
+
+## - form customize
+
+위에서 `{{ form|crispy }}` 는 해당 설정 정보에 맞춰 `form`을 생성해준다.
+
+만약 자동 설정이 싫다면 각각의 column을 따로 분리하여 설정할 수 있다.
+
+```
+# ex1
+<form method="POST">
+    {% csrf_token %}    
+    {{ form.title }} 
+    <!-- form에서 title column 만-->
+    {{ form.content }} 
+    <!-- form에서 content column 만-->
+    <!-- 단, label은 없다. -->
+    <input type="submit" value="생성">
+</form>
+```
+
+단, 위 방식은 `{{ label_tag }}`가 없으므로 label없이 렌더된다.
+
+label을 사용하려면 다음 아래의 두 방법이 있다.
+
+```
+# ex2
+<!-- form의 field를 for문으로 출력하는 방법 -->
+<form method="POST">
+    {% csrf_token %}
+    {% for field in form %}
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+    {% endfor %}
+    <input type="submit" value="생성">
+</form>
+
+# ex3
+<!-- 기본적으로 각각 분기 -->
+{{ form.non_field_errors }}
+<form method="POST">
+    {% csrf_token %}
+    <div>
+        {{ form.title.errors }}
+        {{ form.title.label_tag }}
+        {{ form.title }}
+    </div>
+    <div>
+        {{ form.content.errors }}
+        {{ form.content.label_tag }}
+        {{ form.content }}
+    </div>
+    <input type="submit" value="생성">
+</form>
+```
+
+위 2번째 예시는 for문으로 각각의 field를 보여주는 방법이다.
+
+> errors는 만약 검증이 실패한 경우 전송되는 error message(flash)를 의미한다.
+
+아래 3번째 예시는 아얘 각각의 field를 분리하여 직접 렌더하는 방법이다.
+
+이외에 django에서 지원해주는 강력한 기능인 `form Helper` 기능이 있다.
+
+form helper는 `ModelForm`을 정의한 class에 생성자(`__init__`)을 정의해야한다.
+
+```python
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Submit
+
+...
+
+# form_helper
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.helper = FormHelper()
+    self.helper.form_method = 'POST'
+    self.helper.add_input(Submit('submit', '작성'))
+```
+
+위와 같이 `crispy_forms.helper`의 FormHelper로 `POST` method에 대한 `form_helper`를 정의할 수 있다.
+
+이렇게 정의한 `FormHelper`는 `{{ crispy form }}`으로 form을 렌더할 수 있다.
+
+> crispy는 crispy_forms_tags를 load해야한다.
