@@ -1,0 +1,20 @@
+{% extends 'boards/base.html' %}
+{% block title %}NEW{% endblock %}
+{% block body %}
+<!-- request 객체의 resolver_match는 해당 요청 정보를 가지고 있다.-->
+{% if request.resolver_match.url_name == 'create' %}
+    <h1>NEW board</h1>
+{% else %}
+    <h1>EDIT board</h1>
+{% endif %}
+<form method="POST">
+    {% csrf_token %}    
+    {{ form.as_p }} <!-- as_p, as_table, as_ul이 존재 -->
+    <input type="submit" value="생성">
+</form>
+{% if request.resolver_match.url_name == 'create' %}
+    <a href="{% url 'boards:index' %}">BACK</a>
+{% else %}
+    <a href="{% url 'boards:detail' board.id %}">BACK</a>
+{% endif %}
+{% endblock %}
